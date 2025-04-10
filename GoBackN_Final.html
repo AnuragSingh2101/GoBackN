@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Go-Back-N ARQ Protocol Simulation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: linear-gradient(to bottom right, #5c97f0, #70a4e9);
+      --text: #1a1a1a;
+      --panel: #ffffff;
+      --canvas-bg: #e6e6e6;
+      --log-bg: #f5f5f5;
+      --primary: #1976d2;
+      --accent: #4caf50;
+      --error: #f44336;
+      --shadow: rgba(0, 0, 0, 0.08);
+      --secondary-bg: #f1f1f1;
+    }
+
+    body.dark {
+      --bg: linear-gradient(to bottom right, #1a1c1f, #232629, #2c2f33);
+      --text: #eaeaea;
+      --panel: #2a2d30;
+      --canvas-bg: #1f2124;
+      --log-bg: #25272a;
+      --primary: #64b5f6;
+      --accent: #81c784;
+      --error: #e57373;
+      --shadow: rgba(255, 255, 255, 0.05);
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    h2 {
+      text-align: center;
+      margin: 20px 0;
+      font-size: 32px;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+    }
+
+    .theme-toggle button {
+      background: var(--panel);
+      color: var(--text);
+      font-size: 18px;
+      padding: 10px 14px;
+      border: 1px solid var(--primary);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .theme-toggle button:hover {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .main-layout {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 20px;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .left-panel,
+    .right-panel {
+      background: var(--panel);
+      border-radius: 8px;
+      box-shadow: 0 2px 6px var(--shadow);
+      padding: 20px;
+      min-width: 220px;
+      flex: 1;
+      max-width: 280px;
+    }
+
+    .center-panel {
+      flex: 2;
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px var(--shadow);
+      overflow: hidden;
+    }
+
+    .left-panel label,
+    .right-panel label {
+      font-size: 14px;
+      display: block;
+      margin-top: 12px;
+      font-weight: 600;
+    }
+
+    input[type="number"],
+    input[type="color"],
+    input[type="range"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      background: #f9f9f9;
+    }
+
+    input[type="number"]:focus,
+    input[type="color"]:focus,
+    input[type="range"]:focus {
+      border-color: var(--primary);
+      background: #fff;
+    }
+
+    button {
+      margin-top: 15px;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: var(--primary);
+      opacity: 0.8;
+    }
+
+    .container {
+      overflow-x: auto;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px var(--shadow);
+      width: 100%;
+    }
+
+    canvas {
+      background: var(--canvas-bg);
+      display: block;
+      border-radius: 8px;
+      min-width: 100%;
+    }
+
+    .legend {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 14px;
+      margin-top: 15px;
+      font-weight: 600;
+    }
+
+    .legend span {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 1px solid #bbb;
+      margin-right: 6px;
+      border-radius: 4px;
+    }
+
+    #eventLog {
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 13px;
+      padding: 10px;
+      background: var(--log-bg);
+      border-radius: 6px;
+      box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
+    }
+
+    #eventLog strong {
+      color: var(--primary);
+    }
+
+    #eventLog div {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .speed-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .speed-container input[type="range"] {
+      width: 80%;
+    }
+
+    .speed-container div {
+      font-weight: 600;
+      color: var(--primary);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="theme-toggle">
+    <button id="themeToggleBtn" onclick="toggleTheme()">🌙</button>
+  </div>
+
+  <h2>Go-Back-N ARQ Protocol Simulation</h2>
+
+  <div class="main-layout">
+    <div class="left-panel">
+      <label>Number of Packets: <input type="number" id="packetCount" value="10" min="1" max="50"></label>
+      <label>Window Size: <input type="number" id="windowSize" value="4" min="1" max="10"></label>
+      <button onclick="startAnimation(false)">Start (No Loss)</button>
+      <button onclick="startAnimation(true)">Start (With Loss)</button>
+      <button id="pauseResumeBtn" onclick="togglePauseResume()">Pause</button>
+      <button onclick="resetAnimation()">Reset</button>
+      <button onclick="stepThrough()">Next Step</button>
+
+      <div class="speed-container">
+        <label>Animation Speed:</label>
+        <input type="range" id="speedSlider" min="100" max="2000" value="1000" step="100" oninput="updateSpeed(this.value)">
+        <div id="speedDisplay">Speed: 1000ms</div>
+      </div>
+
+      <label>Unsent Color: <input type="color" id="unsentColor" value="#808080" onchange="updateColor('unsent')"></label>
+      <label>Sent Color: <input type="color" id="sentColor" value="#42a5f5" onchange="updateColor('sent')"></label>
+      <label>ACK Color: <input type="color" id="ackedColor" value="#66bb6a" onchange="updateColor('acked')"></label>
+      <label>Lost Color: <input type="color" id="lostColor" value="#ef5350" onchange="updateColor('lost')"></label>
+    </div>
+
+    <div class="center-panel">
+      <div class="container">
+        <canvas id="gbnCanvas" height="400"></canvas>
+      </div>
+      <div class="legend">
+        <div><span id="unsentLegend" style="background-color: #808080;"></span> Unsent</div>
+        <div><span id="sentLegend" style="background-color: #42a5f5;"></span> Sent</div>
+        <div><span id="ackedLegend" style="background-color: #66bb6a;"></span> ACK</div>
+        <div><span id="lostLegend" style="background-color: #ef5350;"></span> Lost</div>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div id="eventLog"><strong>Event Log:</strong></div>
+      <button onclick="downloadLogPDF()">Download Log as PDF</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    // (Insert the JavaScript code here from your original code)
+    const canvas = document.getElementById("gbnCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let TOTAL_PACKETS = 10;
+    let WINDOW_SIZE = 4;
+    let base = 0, nextSeqNum = 0;
+    let packetStatus = [];
+    let animationRunning = false;
+    let speed = 1000;
+    let animationTimer;
+    let allowPacketLoss = false;
+    let packetWidth = 80;
+    let packetHeight = 40;
+    let senderY = 100, receiverY = 300;
+    let inTransitPackets = [];
+
+    let packetColors = {
+      unsent: "#808080",
+      sent: "#42a5f5",
+      acked: "#66bb6a",
+      lost: "#ef5350"
+    };
+
+    function initializePackets() {
+      TOTAL_PACKETS = parseInt(document.getElementById("packetCount").value);
+      WINDOW_SIZE = parseInt(document.getElementById("windowSize").value);
+      base = 0;
+      nextSeqNum = 0;
+      packetStatus = Array(TOTAL_PACKETS).fill("unsent");
+      inTransitPackets = [];
+
+      canvas.width = Math.max(800, 120 + TOTAL_PACKETS * packetWidth);
+      drawPackets();
+    }
+
+    function drawPackets() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "14px Arial";
+      ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text');
+      ctx.fillText("Sender", 20, senderY + 20);
+      ctx.fillText("Receiver", 20, receiverY + 20);
+
+      for (let i = 0; i < TOTAL_PACKETS; i++) {
+        let x = 100 + i * packetWidth;
+
+        if (packetStatus[i] === "unsent" || packetStatus[i] === "sent" || packetStatus[i] === "lost") {
+          ctx.fillStyle = packetColors[packetStatus[i]];
+          ctx.fillRect(x, senderY, packetWidth - 10, packetHeight);
+          ctx.strokeRect(x, senderY, packetWidth - 10, packetHeight);
+          ctx.fillStyle = "#000";
+          ctx.fillText("Pkt " + i, x + 15, senderY + 25);
+        }
+
+        if (packetStatus[i] === "acked") {
+          ctx.fillStyle = packetColors.acked;
+          ctx.fillRect(x, receiverY, packetWidth - 10, packetHeight);
+          ctx.strokeRect(x, receiverY, packetWidth - 10, packetHeight);
+          ctx.fillStyle = "#000";
+          ctx.fillText("ACK " + i, x + 10, receiverY + 25);
+        }
+      }
+
+      ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--primary');
+      ctx.lineWidth = 2;
+      ctx.strokeRect(100 + base * packetWidth - 5, senderY - 5, packetWidth * WINDOW_SIZE, packetHeight + 10);
+    }
+
+
+
+
+
+
+
+
+function animatePackets() {
+  drawPackets();
+
+  inTransitPackets.forEach(p => {
+    let dy = p.direction === "down" ? 3 : -3;
+    p.y += dy;
+
+    // Draw dashed arrow to indicate movement of each packet
+    ctx.setLineDash([5, 5]);  // Set dashed line pattern
+    ctx.beginPath();
+    ctx.moveTo(p.x + (packetWidth / 2), p.y - 5);  // Start point (slightly above the packet)
+    ctx.lineTo(p.x + (packetWidth / 2), p.targetY); // End point (target position)
+    ctx.strokeStyle = "#000000";  // Color of arrow
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw arrowhead to indicate direction
+    let angle = Math.atan2(p.targetY - p.y, 0); // Calculate angle based on movement
+    let arrowSize = 8;
+    ctx.save();
+    ctx.translate(p.x + (packetWidth / 2), p.y); // Translate to packet position
+    ctx.rotate(angle);  // Rotate arrow to direction of movement
+    ctx.beginPath();
+    ctx.moveTo(0, -arrowSize);
+    ctx.lineTo(-arrowSize / 2, arrowSize / 2);
+    ctx.lineTo(arrowSize / 2, arrowSize / 2);
+    ctx.closePath();
+    ctx.fillStyle = "#000000";
+    ctx.fill();
+    ctx.restore();
+
+    // Draw the packet
+    ctx.fillStyle = p.type === "ack" ? packetColors.acked : packetColors.sent;
+    ctx.fillRect(p.x, p.y, packetWidth - 10, packetHeight);
+    ctx.strokeRect(p.x, p.y, packetWidth - 10, packetHeight);
+    ctx.fillStyle = "#000";
+    ctx.fillText((p.type === "ack" ? "ACK" : "Pkt") + " " + p.id, p.x + 10, p.y + 25);
+  });
+
+  inTransitPackets = inTransitPackets.filter(p => {
+    if ((p.direction === "down" && p.y >= p.targetY) || (p.direction === "up" && p.y <= p.targetY)) {
+      return false;
+    }
+    return true;
+  });
+
+  requestAnimationFrame(animatePackets);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+    function updateColor(status) {
+      const val = document.getElementById(status + "Color").value;
+      packetColors[status] = val;
+      document.getElementById(status + "Legend").style.backgroundColor = val;
+      drawPackets();
+    }
+
+    function updateEventLog(msg) {
+      const log = document.getElementById("eventLog");
+      const entry = document.createElement("div");
+      entry.innerHTML = new Date().toLocaleTimeString() + " - " + msg;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function sendPacket() {
+      if (!animationRunning) return;
+      while (nextSeqNum < base + WINDOW_SIZE && nextSeqNum < TOTAL_PACKETS) {
+        let lost = allowPacketLoss && Math.random() < 0.2;
+        packetStatus[nextSeqNum] = lost ? "lost" : "sent";
+        updateEventLog("Packet " + nextSeqNum + " " + (lost ? "lost ❌" : "sent ✅"));
+        if (!lost) {
+          inTransitPackets.push({
+            id: nextSeqNum,
+            x: 100 + nextSeqNum * packetWidth,
+            y: senderY,
+            targetY: receiverY,
+            direction: "down",
+            type: "data"
+          });
+        }
+        nextSeqNum++;
+      }
+      drawPackets();
+      animationTimer = setTimeout(receiveAck, speed);
+    }
+
+    function receiveAck() {
+      if (!animationRunning) return;
+
+      if (packetStatus[base] === "lost") {
+        updateEventLog("⚠️ Packet loss detected. Resending from Packet " + base);
+        for (let i = base; i < nextSeqNum; i++) {
+          let lost = allowPacketLoss && Math.random() < 0.2;
+          packetStatus[i] = lost ? "lost" : "sent";
+          updateEventLog("Retransmitting Packet " + i + " " + (lost ? "❌ lost again" : "✅ success"));
+          if (!lost) {
+            inTransitPackets.push({
+              id: i,
+              x: 100 + i * packetWidth,
+              y: senderY,
+              targetY: receiverY,
+              direction: "down",
+              type: "data"
+            });
+          }
+        }
+      } else if (packetStatus[base] === "sent") {
+        packetStatus[base] = "acked";
+        updateEventLog("✅ Packet " + base + " acknowledged");
+        inTransitPackets.push({
+          id: base,
+          x: 100 + base * packetWidth,
+          y: receiverY,
+          targetY: senderY,
+          direction: "up",
+          type: "ack"
+        });
+        base++;
+        if (nextSeqNum < base + WINDOW_SIZE && nextSeqNum < TOTAL_PACKETS) {
+          let lost = allowPacketLoss && Math.random() < 0.2;
+          packetStatus[nextSeqNum] = lost ? "lost" : "sent";
+          updateEventLog("Packet " + nextSeqNum + " " + (lost ? "lost ❌" : "sent ✅"));
+          if (!lost) {
+            inTransitPackets.push({
+              id: nextSeqNum,
+              x: 100 + nextSeqNum * packetWidth,
+              y: senderY,
+              targetY: receiverY,
+              direction: "down",
+              type: "data"
+            });
+          }
+          nextSeqNum++;
+        }
+      }
+
+      drawPackets();
+
+      if (base >= TOTAL_PACKETS) {
+        updateEventLog("🎉 All packets acknowledged.");
+        animationRunning = false;
+        return;
+      }
+
+      animationTimer = setTimeout(receiveAck, speed);
+    }
+
+    function startAnimation(withLoss) {
+      allowPacketLoss = withLoss;
+      resetAnimation();
+      animationRunning = true;
+      sendPacket();
+    }
+
+    function stepThrough() {
+      if (!animationRunning) return;
+      receiveAck();
+    }
+
+    function togglePauseResume() {
+      const btn = document.getElementById("pauseResumeBtn");
+      if (animationRunning) {
+        clearTimeout(animationTimer);
+        animationRunning = false;
+        btn.textContent = "Resume";
+        updateEventLog("⏸️ Simulation paused");
+      } else {
+        animationRunning = true;
+        btn.textContent = "Pause";
+        updateEventLog("▶️ Simulation resumed");
+        animationTimer = setTimeout(receiveAck, speed);
+      }
+    }
+
+    function resetAnimation() {
+      clearTimeout(animationTimer);
+      document.getElementById("eventLog").innerHTML = "<strong>Event Log:</strong>";
+      initializePackets();
+      animationRunning = false;
+      document.getElementById("pauseResumeBtn").textContent = "Pause";
+    }
+
+
+
+
+    function updateSpeed(value) {
+  speed = parseInt(value);
+  document.getElementById("speedDisplay").textContent = `Speed: ${speed}ms`;
+}
+
+
+
+
+
+    async function downloadLogPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const logText = document.getElementById("eventLog").innerText;
+      const lines = doc.splitTextToSize(logText, 180);
+      doc.text(lines, 15, 20);
+      doc.save("gbn_event_log.pdf");
+    }
+
+    function toggleTheme() {
+      const body = document.body;
+      body.classList.toggle("dark");
+      const themeBtn = document.getElementById("themeToggleBtn");
+      themeBtn.textContent = body.classList.contains("dark") ? "🌞" : "🌙";
+      drawPackets();
+    }
+
+    window.onload = () => {
+      initializePackets();
+      requestAnimationFrame(animatePackets);
+    };
+  </script>
+</body>
+</html>
