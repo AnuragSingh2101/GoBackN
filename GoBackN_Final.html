@@ -266,12 +266,12 @@
     const canvas = document.getElementById("gbnCanvas");
     const ctx = canvas.getContext("2d");
 
-    let TOTAL_PACKETS = 10;
-    let WINDOW_SIZE = 4;
+    let TOTAL_PACKETS = 6;
+    let WINDOW_SIZE = 3;
     let base = 0, nextSeqNum = 0;
     let packetStatus = [];
     let animationRunning = false;
-    let speed = 1000;
+    let speed = 500;
     let animationTimer;
     let allowPacketLoss = false;
     let packetWidth = 80;
@@ -287,16 +287,16 @@
     };
 
     function initializePackets() {
-      TOTAL_PACKETS = parseInt(document.getElementById("packetCount").value);
-      WINDOW_SIZE = parseInt(document.getElementById("windowSize").value);
-      base = 0;
-      nextSeqNum = 0;
-      packetStatus = Array(TOTAL_PACKETS).fill("unsent");
-      inTransitPackets = [];
+  TOTAL_PACKETS = parseInt(document.getElementById("packetCount").value);
+  WINDOW_SIZE = parseInt(document.getElementById("windowSize").value);
+  base = 0;
+  nextSeqNum = 0;
+  packetStatus = Array(TOTAL_PACKETS).fill("unsent");
+  inTransitPackets = [];
 
-      canvas.width = Math.max(800, 120 + TOTAL_PACKETS * packetWidth);
-      drawPackets();
-    }
+  canvas.width = Math.max(800, 120 + TOTAL_PACKETS * packetWidth);
+  drawPackets();
+}
 
     function drawPackets() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -532,8 +532,9 @@ function animatePackets() {
 
 
 
+    // let speed = 1000; // default speed in milliseconds
 
-    function updateSpeed(value) {
+function updateSpeed(value) {
   speed = parseInt(value);
   document.getElementById("speedDisplay").textContent = `Speed: ${speed}ms`;
 }
